@@ -21,6 +21,12 @@ export const useSocket = () => {
   const [messages, setMessages] = useState([]);
   const [users, setUsers] = useState([]);
   const [typingUsers, setTypingUsers] = useState([]);
+  const [currentRoom, setCurrentRoom] = useState('general');
+  const [rooms, setRooms] = useState(['general']);
+  const [roomMessages, setRoomMessages] = useState({});
+  const [messageReactions, setMessageReactions] = useState({});
+  const [readReceipts, setReadReceipts] = useState({});
+  const [searchResults, setSearchResults] = useState([]);
 
   // Connect to socket server
   const connect = (username) => {
@@ -48,6 +54,40 @@ export const useSocket = () => {
   // Set typing status
   const setTyping = (isTyping) => {
     socket.emit('typing', isTyping);
+  };
+
+  // Join a room
+  const joinRoom = (roomName) => {
+    socket.emit('join_room', roomName);
+    setCurrentRoom(roomName);
+    if (!rooms.includes(roomName)) {
+      setRooms(prev => [...prev, roomName]);
+    }
+  };
+
+  // Send message to a room
+  const sendRoomMessage = (message, room) => {
+    socket.emit('send_room_message', { message, room });
+  };
+
+  // Send file
+  const sendFile = (fileName, fileData, fileType, room) => {
+    socket.emit('send_file', { fileName, fileData, fileType, room });
+  };
+
+  // Add reaction to message
+  const addReaction = (messageId, reaction) => {
+    socket.emit('add_reaction', { messageId, reaction });
+  };
+
+  // Mark message as read
+  const markAsRead = (messageId) => {
+    socket.emit('mark_as_read', messageId);
+  };
+
+  // Search messages
+  const searchMessages = (query, room) => {
+    socket.emit('search_messages', { query, room });
   };
 
   // Socket event listeners
@@ -108,6 +148,45 @@ export const useSocket = () => {
       setTypingUsers(users);
     };
 
+    // Room events
+    const onRoomMessages = (messages) => {
+      setRoomMessages((prev) => ({ ...prev, [currentRoom]: messages }));
+    };
+
+    const onReceiveRoomMessage = (message) => {
+      setRoomMessages((prev) => ({
+        ...prev,
+        [message.room]: [...(prev[message.room] || []), message]
+      }));
+    };
+
+    // File events
+    const onReceiveFile = (fileMessage) => {
+      if (fileMessage.room && fileMessage.room !== 'general') {
+        setRoomMessages((prev) => ({
+          ...prev,
+          [fileMessage.room]: [...(prev[fileMessage.room] || []), fileMessage]
+        }));
+      } else {
+        setMessages((prev) => [...prev, fileMessage]);
+      }
+    };
+
+    // Reaction events
+    const onReactionUpdate = ({ messageId, reactions }) => {
+      setMessageReactions((prev) => ({ ...prev, [messageId]: reactions }));
+    };
+
+    // Read receipt events
+    const onReadReceiptUpdate = ({ messageId, readBy }) => {
+      setReadReceipts((prev) => ({ ...prev, [messageId]: readBy }));
+    };
+
+    // Search events
+    const onSearchResults = (results) => {
+      setSearchResults(results);
+    };
+
     // Register event listeners
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
@@ -117,6 +196,12 @@ export const useSocket = () => {
     socket.on('user_joined', onUserJoined);
     socket.on('user_left', onUserLeft);
     socket.on('typing_users', onTypingUsers);
+    socket.on('room_messages', onRoomMessages);
+    socket.on('receive_room_message', onReceiveRoomMessage);
+    socket.on('receive_file', onReceiveFile);
+    socket.on('reaction_update', onReactionUpdate);
+    socket.on('read_receipt_update', onReadReceiptUpdate);
+    socket.on('search_results', onSearchResults);
 
     // Clean up event listeners
     return () => {
@@ -138,11 +223,23 @@ export const useSocket = () => {
     messages,
     users,
     typingUsers,
+    currentRoom,
+    rooms,
+    roomMessages,
+    messageReactions,
+    readReceipts,
+    searchResults,
     connect,
     disconnect,
     sendMessage,
     sendPrivateMessage,
     setTyping,
+    joinRoom,
+    sendRoomMessage,
+    sendFile,
+    addReaction,
+    markAsRead,
+    searchMessages,
   };
 };
 
